@@ -24,6 +24,7 @@ public class SoundGenerator {
     private WaveTypes waveType = WaveTypes.SINUSOIDAL;
     private float rightVolume = 1, leftVolume = 1, volume = 1, dB = -20;
     private boolean cleanStart = false;
+    private float amplitude = 1.0f;
 
     public void setCleanStart(boolean cleanStart) {
         this.cleanStart = cleanStart;
@@ -76,7 +77,7 @@ public class SoundGenerator {
         volume = Math.max(0, Math.min(1, volume));
         this.volume = volume;
 
-        if(recalculateDecibel) {
+        if (recalculateDecibel) {
             if (volume >= 0.000001f) {
                 this.dB = 20f * (float) Math.log10(volume);
             } else {
@@ -95,7 +96,7 @@ public class SoundGenerator {
 
     public void setDecibel(float dB) {
         this.dB = dB;
-        float lineerVolume = (float) Math.pow(10f, (dB / 20f) );
+        float lineerVolume = (float) Math.pow(10f, (dB / 20f));
         if (lineerVolume < 0.000001f) {
             lineerVolume = 0f;
         }
@@ -104,6 +105,18 @@ public class SoundGenerator {
 
     public float getDecibel() {
         return dB;
+    }
+
+    public void setAmplitude(float amplitude) {
+        this.amplitude = Math.max(0, Math.min(1, amplitude));
+        if (generator != null) {
+            generator.updateOnce();
+            refreshOneCycleData();
+        }
+    }
+
+    public float getAmplitude() {
+        return amplitude;
     }
 
     public void setWaveform(WaveTypes waveType) {
@@ -130,6 +143,7 @@ public class SoundGenerator {
                     AudioFormat.ENCODING_PCM_16BIT);
 
             generator = new signalDataGenerator(minSamplesSize, sampleRate);
+            generator.setAmplitude(amplitude);
 
             audioTrack = new AudioTrack(
                     AudioManager.STREAM_MUSIC,
@@ -140,8 +154,7 @@ public class SoundGenerator {
                     AudioTrack.MODE_STREAM);
 
             return true;
-        }catch (Exception ex)
-        {
+        } catch (Exception ex) {
             return false;
         }
     }

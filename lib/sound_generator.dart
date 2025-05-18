@@ -135,6 +135,12 @@ class SoundGenerator {
         .invokeMethod("setDecibel", <String, dynamic>{"dB": dB});
   }
 
+  /// Set Amplitude Range from 0 to 1
+  static void setAmplitude(double amplitude) async {
+    await _channel
+        .invokeMethod("setAmplitude", {'amplitude': amplitude});
+  }
+
   /// Set whether we start with a clean frequency on play
   static void setCleanStart(bool cleanStart) async {
     await _channel
