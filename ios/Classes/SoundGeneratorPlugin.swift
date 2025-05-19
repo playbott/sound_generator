@@ -8,6 +8,7 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
   // This is not used yet.
   var sampleRate: Int = 48000
   var isPlaying: Bool = false
+  var currentAmplitude: Double = 1.0
 
   var oscillator: AKMorphingOscillator = AKMorphingOscillator(waveformArray: [
     AKTable(.sine),
@@ -24,6 +25,7 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
 
   public init(registrar: FlutterPluginRegistrar) {
     super.init()
+    self.oscillator.amplitude = self.currentAmplitude
     self.panner = AKPanner(self.oscillator, pan: 0.0)
     self.mixer = AKMixer(self.panner!)
     self.mixer!.volume = 1.0
@@ -92,6 +94,13 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
     case "setFrequency":
       let args = call.arguments as! [String: Any]
       self.oscillator.frequency = args["frequency"] as! Double
+      result(nil)
+      break
+    case "setAmplitude":
+      let args = call.arguments as! [String: Any]
+      let amplitude = max(0.0, min(1.0, args["amplitude"] as! Double))
+      self.currentAmplitude = amplitude
+      self.oscillator.amplitude = self.currentAmplitude
       result(nil)
       break
     case "setWaveform":
