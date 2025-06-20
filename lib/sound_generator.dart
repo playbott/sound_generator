@@ -135,6 +135,12 @@ class SoundGenerator {
         .invokeMethod("setDecibel", <String, dynamic>{"dB": dB});
   }
 
+  /// Set Fade Duration
+  static void setFadeDuration(int durationMs) async {
+    await _channel
+        .invokeMethod("setFadeDuration", <String, dynamic>{"duration": durationMs});
+  }
+
   /// Set Amplitude Range from 0 to 1
   static void setAmplitude(double amplitude) async {
     await _channel

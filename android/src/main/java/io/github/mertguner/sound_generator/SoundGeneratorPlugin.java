@@ -88,6 +88,10 @@ public class SoundGeneratorPlugin implements FlutterPlugin, MethodCallHandler {
         double dB = call.argument("dB");
         soundGenerator.setDecibel((float) dB);
         break;
+      case "setFadeDuration":
+        int duration = call.argument("duration");
+        soundGenerator.setFadeDuration(duration);
+        break;
       case "setAmplitude":
         double amplitude = call.argument("amplitude");
         soundGenerator.setAmplitude((float) amplitude);
