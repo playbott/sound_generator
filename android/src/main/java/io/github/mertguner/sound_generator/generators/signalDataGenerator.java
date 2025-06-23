@@ -2,11 +2,12 @@ package io.github.mertguner.sound_generator.generators;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import io.github.mertguner.sound_generator.handlers.getOneCycleDataHandler;
 
 public class signalDataGenerator {
-
 
     private final float _2Pi = 2.0f * (float) Math.PI;
 
@@ -17,15 +18,69 @@ public class signalDataGenerator {
     private float frequency = 50;
     private baseGenerator generator = new sinusoidalGenerator();
 
-    private short[] backgroundBuffer;
-    private short[] buffer;
-    private List<Integer> oneCycleBuffer = new ArrayList<>();
-    private int bufferSamplesSize;
+    private final int bufferSamplesSize;
     private float ph = 0;
     private float oldFrequency = 50;
-    private boolean creatingNewData = false;
     private boolean autoUpdateOneCycleSample = false;
     private float amplitude = 1.0f;
+
+    private final BlockingQueue<short[]> bufferQueue;
+    private Thread producerThread;
+    private volatile boolean isRunning = false;
+
+    public signalDataGenerator(int bufferSamplesSize, int sampleRate) {
+        this.bufferSamplesSize = bufferSamplesSize;
+        setSampleRate(sampleRate);
+
+        this.bufferQueue = new ArrayBlockingQueue<>(2);
+    }
+
+    public void start() {
+        if (isRunning) return;
+        isRunning = true;
+
+        producerThread = new Thread(() -> {
+            while (isRunning) {
+                try {
+                    short[] buffer = new short[bufferSamplesSize];
+                    generateBuffer(buffer);
+                    bufferQueue.put(buffer);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        producerThread.setDaemon(true);
+        producerThread.start();
+    }
+
+    public void stop() {
+        isRunning = false;
+        if (producerThread != null) {
+            producerThread.interrupt();
+        }
+        bufferQueue.clear();
+    }
+
+    private void generateBuffer(short[] buffer) {
+        for (int i = 0; i < bufferSamplesSize; i++) {
+            oldFrequency += ((frequency - oldFrequency) * smoothStep);
+            buffer[i] = generator.getValue(ph, _2Pi, amplitude);
+            ph += (oldFrequency * phCoefficient);
+
+            if (ph > _2Pi) {
+                ph -= _2Pi;
+            }
+        }
+    }
+
+    public short[] getData() throws InterruptedException {
+        return bufferQueue.take();
+    }
+
+    public void updateOnce() {
+        createOneCycleData();
+    }
 
     public boolean isAutoUpdateOneCycleSample() {
         return autoUpdateOneCycleSample;
@@ -76,59 +131,14 @@ public class signalDataGenerator {
         oldFrequency = frequency;
     }
 
-    public signalDataGenerator(int bufferSamplesSize, int sampleRate) {
-        this.bufferSamplesSize = bufferSamplesSize;
-        backgroundBuffer = new short[bufferSamplesSize];
-        buffer = new short[bufferSamplesSize];
-        setSampleRate(sampleRate);
-        updateOnce();
-    }
-
-    public void updateOnce() {
-        updateData();
-        createOneCycleData();
-    }
-
-    private void updateData() {
-        creatingNewData = true;
-        for (int i = 0; i < bufferSamplesSize; i++) {
-            oldFrequency += ((frequency - oldFrequency) * smoothStep);
-            backgroundBuffer[i] = generator.getValue(ph, _2Pi, amplitude);
-            ph += (oldFrequency * phCoefficient);
-
-            //performance of this block is higher than ph %= _2Pi;
-            // ifBlock  Test score =  2,470ns
-            // ModBlock Test score = 27,025ns
-            if (ph > _2Pi) {
-                ph -= _2Pi;
-            }
-        }
-        creatingNewData = false;
-    }
-
-    public short[] getData() {
-        if (!creatingNewData) {
-            System.arraycopy(backgroundBuffer, 0, buffer, 0, bufferSamplesSize);
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    updateData();
-                }
-            }).start();
-        }
-        return this.buffer;
-    }
-
     public void createOneCycleData() {
         createOneCycleData(false);
     }
 
     public void createOneCycleData(boolean force) {
         if (generator == null || (!autoUpdateOneCycleSample && !force)) return;
-
         int size = Math.round(_2Pi / (frequency * phCoefficient));
-
-        oneCycleBuffer.clear();
+        List<Integer> oneCycleBuffer = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             oneCycleBuffer.add((int) generator.getValue((frequency * phCoefficient) * (float) i, _2Pi, amplitude));
         }
