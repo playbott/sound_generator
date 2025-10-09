@@ -5,7 +5,9 @@ import android.os.Looper;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.media.AudioAttributes;
 
+import io.flutter.plugin.common.EventChannel;
 import io.github.mertguner.sound_generator.generators.sawtoothGenerator;
 import io.github.mertguner.sound_generator.generators.signalDataGenerator;
 import io.github.mertguner.sound_generator.generators.sinusoidalGenerator;
@@ -15,6 +17,7 @@ import io.github.mertguner.sound_generator.handlers.isPlayingStreamHandler;
 import io.github.mertguner.sound_generator.models.WaveTypes;
 
 public class SoundGenerator {
+    private EventChannel.EventSink isPlayingEventSink;
     private Thread bufferThread;
     private AudioTrack audioTrack;
     private signalDataGenerator generator;
@@ -36,9 +39,19 @@ public class SoundGenerator {
             generator = new signalDataGenerator(minSamplesSize, sampleRate);
             generator.setAmplitude(amplitude);
 
-            generator.start();
-
-            audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT, minSamplesSize, AudioTrack.MODE_STREAM);
+            audioTrack = new AudioTrack.Builder()
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build())
+                .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build())
+                .setBufferSizeInBytes(minSamplesSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build();
 
             return true;
         } catch (Exception ex) {
@@ -52,6 +65,8 @@ public class SoundGenerator {
         if (cleanStart) {
             generator.resetFrequency();
         }
+
+        generator.start();
 
         isPlaying = true;
         isStopping = false;
@@ -91,9 +106,19 @@ public class SoundGenerator {
                 }
             }
             audioTrack.stop();
+            generator.stop();
+
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (isPlayingEventSink != null) {
+                    isPlayingEventSink.success(false);
+                }
+                bufferThread = null;
+            });
         });
 
-        isPlayingStreamHandler.change(true);
+        if (isPlayingEventSink != null) {
+            isPlayingEventSink.success(true);
+        }
         bufferThread.start();
     }
 
@@ -101,21 +126,6 @@ public class SoundGenerator {
         if (bufferThread == null || isStopping) return;
 
         isStopping = true;
-
-        new Thread(() -> {
-            try {
-                if (bufferThread != null) {
-                    bufferThread.join();
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } finally {
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    isPlayingStreamHandler.change(false);
-                    bufferThread = null;
-                });
-            }
-        }).start();
     }
 
     public void release() {
@@ -202,6 +212,7 @@ public class SoundGenerator {
     public void setAmplitude(float amplitude) {
         this.amplitude = Math.max(0, Math.min(1, amplitude));
         if (generator != null) {
+            generator.setAmplitude(this.amplitude);
             generator.updateOnce();
             refreshOneCycleData();
         }
@@ -222,5 +233,15 @@ public class SoundGenerator {
         else if (waveType.equals(WaveTypes.TRIANGLE)) generator.setGenerator(new triangleGenerator());
         else if (waveType.equals(WaveTypes.SQUAREWAVE)) generator.setGenerator(new squareWaveGenerator());
         else if (waveType.equals(WaveTypes.SAWTOOTH)) generator.setGenerator(new sawtoothGenerator());
+    }
+
+    public void setIsPlayingEventSink(EventChannel.EventSink eventSink) {
+        this.isPlayingEventSink = eventSink;
+    }
+
+    public void setOneCycleDataEventSink(EventChannel.EventSink eventSink) {
+        if (generator != null) {
+            generator.setOneCycleDataEventSink(eventSink);
+        }
     }
 }

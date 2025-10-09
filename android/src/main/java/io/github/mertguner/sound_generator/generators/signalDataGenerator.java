@@ -5,11 +5,14 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import io.flutter.plugin.common.EventChannel;
 import io.github.mertguner.sound_generator.handlers.getOneCycleDataHandler;
 
 public class signalDataGenerator {
 
     private final float _2Pi = 2.0f * (float) Math.PI;
+    private EventChannel.EventSink oneCycleDataEventSink;
+
 
     private int sampleRate = 48000;
     private float phCoefficient = _2Pi / (float) sampleRate;
@@ -59,6 +62,10 @@ public class signalDataGenerator {
         if (producerThread != null) {
             producerThread.interrupt();
         }
+        bufferQueue.clear();
+    }
+
+    public void clearQueue() {
         bufferQueue.clear();
     }
 
@@ -135,6 +142,10 @@ public class signalDataGenerator {
         createOneCycleData(false);
     }
 
+    public void setOneCycleDataEventSink(EventChannel.EventSink eventSink) {
+        this.oneCycleDataEventSink = eventSink;
+    }
+
     public void createOneCycleData(boolean force) {
         if (generator == null || (!autoUpdateOneCycleSample && !force)) return;
         int size = Math.round(_2Pi / (frequency * phCoefficient));
@@ -143,6 +154,8 @@ public class signalDataGenerator {
             oneCycleBuffer.add((int) generator.getValue((frequency * phCoefficient) * (float) i, _2Pi, amplitude));
         }
         oneCycleBuffer.add((int) generator.getValue(0, _2Pi, amplitude));
-        getOneCycleDataHandler.setData(oneCycleBuffer);
+        if (oneCycleDataEventSink != null) {
+            oneCycleDataEventSink.success(oneCycleBuffer);
+        }
     }
 }
