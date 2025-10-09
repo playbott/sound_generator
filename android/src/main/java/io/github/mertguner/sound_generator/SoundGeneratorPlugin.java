@@ -27,13 +27,13 @@ public class SoundGeneratorPlugin implements FlutterPlugin, MethodCallHandler {
             flutterPluginBinding.getBinaryMessenger(),
             isPlayingStreamHandler.NATIVE_CHANNEL_EVENT
     );
-    onChangeIsPlaying.setStreamHandler(new isPlayingStreamHandler());
+    onChangeIsPlaying.setStreamHandler(new isPlayingStreamHandler(soundGenerator::setIsPlayingEventSink));
 
     final EventChannel onOneCycleDataHandler = new EventChannel(
             flutterPluginBinding.getBinaryMessenger(),
             getOneCycleDataHandler.NATIVE_CHANNEL_EVENT
     );
-    onOneCycleDataHandler.setStreamHandler(new getOneCycleDataHandler());
+    onOneCycleDataHandler.setStreamHandler(new getOneCycleDataHandler(soundGenerator::setOneCycleDataEventSink));
   }
 
   @Override
