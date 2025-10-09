@@ -9,7 +9,8 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
   var sampleRate: Int = 48000
   var isPlaying: Bool = false
   var currentAmplitude: Double = 1.0
-
+  var envelope: AKAmplitudeEnvelope?
+  var fadeDuration: Double = 0.1
   var oscillator: AKMorphingOscillator = AKMorphingOscillator(waveformArray: [
     AKTable(.sine),
     AKTable(.square),
@@ -26,7 +27,12 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
   public init(registrar: FlutterPluginRegistrar) {
     super.init()
     self.oscillator.amplitude = self.currentAmplitude
-    self.panner = AKPanner(self.oscillator, pan: 0.0)
+    self.envelope = AKAmplitudeEnvelope(self.oscillator)
+    self.envelope!.attackDuration = self.fadeDuration
+    self.envelope!.decayDuration = 0.0
+    self.envelope!.sustainLevel = 1.0
+    self.envelope!.releaseDuration = self.fadeDuration
+    self.panner = AKPanner(self.envelope!, pan: 0.0)
     self.mixer = AKMixer(self.panner!)
     self.mixer!.volume = 1.0
     AKSettings.disableAVAudioSessionCategoryManagement = true
@@ -54,6 +60,8 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
       self.oscillator.frequency = 400
       do {
         try AKManager.start()
+        self.oscillator.start()
+        self.envelope?.stop()
         result(true)
       } catch {
         result(
@@ -67,20 +75,30 @@ public class SwiftSoundGeneratorPlugin: NSObject, FlutterPlugin {
       result(nil)
       break
     case "play":
-      self.oscillator.start()
+      self.envelope?.start()
       onChangeIsPlaying!.sendEvent(event: true)
       result(nil)
       break
     case "stop":
-      self.oscillator.stop()
+      self.envelope?.stop()
       onChangeIsPlaying!.sendEvent(event: false)
+      result(nil)
+      break
+
+    case "setFadeDuration":
+      let args = call.arguments as! [String: Any]
+      let durationMs = args["duration"] as! Int
+      self.fadeDuration = Double(durationMs) / 1000.0
+      self.envelope?.attackDuration = self.fadeDuration
+      self.envelope?.releaseDuration = self.fadeDuration
       result(nil)
       break
     case "dB":
       if self.mixer!.volume >= 0.000001 {
         result(20.0 * log10(self.mixer!.volume))
+      } else {
+        result(-120.0)
       }
-      result(-120.0)
       break
     case "volume":
       result(self.mixer!.volume)
